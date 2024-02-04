@@ -30,30 +30,58 @@ np = NeoPixel(NEO_PIXEL_PIN, NEO_PIXEL_COUNT)   # create NeoPixel driver on GPIO
 neo = neoring.NeoRing(np, NEO_PIXEL_COUNT)
 
 tim0 = Timer(0)
+tim1 = Timer(1)
+menu={}
 
-def update_time():
-    timestamp = internal_rtc.datetime()
-    display_tm1637.numbers(timestamp[3], timestamp[4])
-
-
-def main():
-    neo.off()
+def rtc_init():
+    """
+    Initialize and synchronize the internal RTC with the external RTC.
+    """
     print(f"Int. RTC : {internal_rtc.datetime()}")
     timestamp = external_rtc.get_time()
     print(f"Ext.RTC : {timestamp}")
     if timestamp[0] == 2000:
+        print("Adjusting external RTC")
         external_rtc.set_time((2024, 1, 22, 10, 55, 0, 1, 1))
-    display_tm1637.scroll("Goedemorgen", 200)
+        
+    timestamp = external_rtc.get_time()
+    # update internal timestamp
+    internal_rtc.datetime(timestamp)
+    
+def update_time(t=None):
+    print("Update time display")
+    timestamp = external_rtc.get_time()
+    print(timestamp)
+    display_tm1637.numbers(timestamp[3], timestamp[4])
+    neo.show_time(timestamp[3], timestamp[4])
+
+
+def update_second(t=None):
+    timestamp = external_rtc.get_time()
+    #neo.show_time(timestamp[3], timestamp[4], timestamp[5])
+    
+#def create_menu():
+#    menu["time"]=MenuItem('Tijd', edit_time, id=1, time_obj=None)
+#    menu["alarm1"]=MenuItem('Alarm 1', edit_alarm, id=1, alarm_obj=None)
+
+def main():
+    neo.off()
+    rtc_init()
+    #display_tm1637.scroll("Goedemorgen", 200)
     tim0.init(period=60000, mode=Timer.PERIODIC, callback=update_time)
+    tim1.init(period=1000, mode=Timer.PERIODIC, callback=update_second)
     update_time()
     time.sleep(3)
+    while True:
 
-    for level in range(0, 100):
-        #display_tm1637.number(level)
-        neo.light((64,16,32), float(level)/100.0)
-        time.sleep(0.5)
+        #for level in range(0, 100):
+            #display_tm1637.number(level)
+        #    neo.light((64,16,32), float(level)/100.0)
+        #    time.sleep(0.5)
         
-    neo.off()        
+        #neo.off()
+        time.sleep(2.0)
+        
         
 if __name__ == "__main__":
     main()
