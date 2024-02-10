@@ -1,0 +1,3 @@
+[submodule "external/micropython-button"]
+	path = external/micropython-button
+	url = https://github.com/ubidefeo/MicroPython-Button.git
