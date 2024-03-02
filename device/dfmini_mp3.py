@@ -15,16 +15,44 @@ class Mp3Player:
   PAUSE=0x0E
   PLAY_FOLDER=0x0F
   SET_REPEAT_PLAY=0x11
+  STOP=0x16
   GET_CURRENT_STATUS=0x42
   GET_CURRENT_TRACK=0x4B
-  
-  def __init__(self):
-    pass
 
+  COM_START = 0xFE
+  COM_END = 0xEF
+  COM_VERSION = 0xFF
+  
+  def __init__(self, uart_id):
+    self._uart_id = uart_id
+    self._uart = machine.UART(uart_id, 9600)
+    self._uart.flush()
+    
+
+  def _checksum(self, msg):
+    checksum = 0
+    for d in msg:
+      checksum = checksum + d
+    checksum_bytes = bytearray(2)
+    checksum_bytes[0] = (checksum>>7) - 1
+    checksum_bytes[0] = ~checksum_bytes[0]
+    checksum_bytes[1] = checksum - 1
+    checksum_bytes[1] = ~checksum_bytes[1]
+    return checksum_bytes
+    
   def _send(self, cmd, payload, need_reply):
-    # Add 2 for command and reply 
+    # Add 3 for version, command and reply 
     data_length = len(payload) + 2
     reply_field = 0x01 if need_reply else 0x00
-    header = bytes(0x7E, 0xFF, data_length, cmd, reply_field)
-    data=b''.join( blokhaken.... header,payload)
+    header = bytes(self.COM_VERSION, data_length, cmd, reply_field)
+    data = b''.join([header,payload])
+    msg = b''.join([self.COM_START, data, _checksum(data), self.COM_END)
+    self._uart.write(msg)
 
+  def stop(self):
+    self._send(self.STOP, payload=bytearray([0,0]), need_reply=False)
+    
+  def play(self):
+    self._send(self.PLAY, payload=bytearray([0,0]), need_reply=False) 
+
+  
