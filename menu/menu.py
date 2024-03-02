@@ -1,6 +1,6 @@
 import helpers
 
-ButtonEvent = helpers.enum(ESCAPE=1, UP=2, DOWN=3, LEFT=4, RIGHT=5)
+ButtonCode = helpers.enum(ESCAPE=1, UP=2, DOWN=3, LEFT=4, RIGHT=5)
 MenuState = helpers.enum(DISABLED=0, IN_MENU=1, IN_CALLBACK=2, EXIT=3)
 
 class Menu:
@@ -70,7 +70,7 @@ class Menu:
         
         return menu_keys[self._menu_index]
     
-    def button_event(self, button):
+    def button_event(self, button, event):
         active_menu = self._jump_into_menu(self._breadcrums)
         menu_keys = list(active_menu.keys())
         #print(f"Breadcrums = {self._breadcrums}")
@@ -79,26 +79,27 @@ class Menu:
 
         # Forward to callback function
         has_callback = "callback" in menu_keys
-        if has_callback and button is not ButtonEvent.ESCAPE:
+        if has_callback and button is not ButtonCode.ESCAPE:
             print("Forwarding to callback function!!!")
             kwargs = active_menu["kwargs"]
             if kwargs is None:
                 kwargs = {}
             kwargs["button"] = button
+            kwargs["event"] = event
             active_menu["callback"](**kwargs)
             print("Return code (1) : ", active_menu["return_code"])
             return active_menu["return_code"]
             
         # Else handle menu control
-        if button == ButtonEvent.DOWN:
+        if button == ButtonCode.DOWN:
             print("Down button")
             self._next_index(menu_keys)
             #print(f"  --> {menu_keys[self._menu_index]}")
-        elif button == ButtonEvent.UP:
+        elif button == ButtonCode.UP:
             print("Up button")
             self._prev_index(menu_keys)            
             #print(f"  --> {menu_keys[self._menu_index]}")
-        elif button == ButtonEvent.RIGHT:
+        elif button == ButtonCode.RIGHT:
             print("Right button")
             keyword_active_menu = menu_keys[self._menu_index]
             if "return_code" in menu_keys and active_menu["return_code"] == MenuState.EXIT:
@@ -112,6 +113,7 @@ class Menu:
                 if kwargs is None:
                     kwargs = {}
                 kwargs["button"] = None
+                kwargs["event"] = event
                 active_menu[keyword_active_menu]["callback"](**kwargs)
                 
                 self._breadcrums.append(keyword_active_menu)
@@ -124,7 +126,7 @@ class Menu:
                 #    #new_entry["callback"](**active_menu["kwargs"])
                 #    return MenuState.IN_CALLBACK
                 self._menu_index = 0
-        elif button == ButtonEvent.ESCAPE:
+        elif button == ButtonCode.ESCAPE:
             print("Escape button")
             if len(self._breadcrums) > 0:
                 # Remove last element from the breadcrums

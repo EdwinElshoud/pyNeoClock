@@ -1,4 +1,5 @@
 from machine import Pin
+import time
 
 class Button(object):
     
@@ -7,6 +8,8 @@ class Button(object):
     # pin_number = 0
     RELEASED = 'released'
     PRESSED = 'pressed'
+    LONGPRESS = 'longpress'
+    
     def __init__(self, pin, rest_state = False, callback = None, internal_pullup = False, internal_pulldown = False):
         self.pin_number = pin
         self.rest_state = rest_state
@@ -23,14 +26,39 @@ class Button(object):
         
         self.callback = callback
         self.active = False
+        self.last_event_time = None
+        
+    def _is_repeat_time(self, interval):
+        """
+        Check if the repeat event has elapsed.
+        """
+        if self._last_event_time is None:
+            self._last_event_time = time.ticks_ms()
+            return False
+        
+        if (time.ticks_ms() - self._last_event_time) > interval:
+            # restart the timer
+            self._last_event_time = time.ticks_ms()
+            return True
+        
+        return False
     
-    def update(self):
-        # print(self.pin.value())
-        if self.pin.value() == (not self.rest_state) and (not self.active):
-            self.active = True
-            if self.callback != None:
-                self.callback(self.pin_number, Button.PRESSED)
+    def update(self, repeat_interval):
+        
+        if self.pin.value() == (not self.rest_state):
+            if not self.active:
+                self.active = True
+                do_callback = True
+                self._last_event_time = time.ticks_ms()
+                if self.callback:
+                    self.callback(self.pin_number, Button.PRESSED)
+            else:
+                if self._is_repeat_time(repeat_interval) and self.callback:
+                    # Check for repeat interval to do the callback again (and again...)
+                    self.callback(self.pin_number, Button.LONGPRESS)
+                
             return
+        
         if self.pin.value() == self.rest_state and self.active:
             self.active = False
             if self.callback != None:
