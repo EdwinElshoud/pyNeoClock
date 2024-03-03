@@ -9,6 +9,8 @@ class Button(object):
     RELEASED = 'released'
     PRESSED = 'pressed'
     LONGPRESS = 'longpress'
+    LONGPRESS_REPEAT = 'longpress_repeat'
+    LONGPRESS_RELEASED = 'longpress_released'
     
     def __init__(self, pin, rest_state = False, callback = None, internal_pullup = False, internal_pulldown = False):
         self.pin_number = pin
@@ -27,6 +29,7 @@ class Button(object):
         self.callback = callback
         self.active = False
         self.last_event_time = None
+        self._is_longpress = False
         
     def _is_repeat_time(self, interval):
         """
@@ -55,13 +58,21 @@ class Button(object):
             else:
                 if self._is_repeat_time(repeat_interval) and self.callback:
                     # Check for repeat interval to do the callback again (and again...)
-                    self.callback(self.pin_number, Button.LONGPRESS)
+                    if self._is_longpress == False:
+                        self.callback(self.pin_number, Button.LONGPRESS)
+                        self._is_longpress = True
+                    else:
+                        self.callback(self.pin_number, Button.LONGPRESS_REPEAT)
                 
             return
         
         if self.pin.value() == self.rest_state and self.active:
             self.active = False
             if self.callback != None:
-                self.callback(self.pin_number, Button.RELEASED)
+                if self._is_longpress:
+                    self.callback(self.pin_number, Button.LONGPRESS_RELEASED)
+                else:
+                    self.callback(self.pin_number, Button.RELEASED)
+                self._is_longpress = False
             return
     

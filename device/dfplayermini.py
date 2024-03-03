@@ -26,6 +26,11 @@ class Mp3Player:
   COM_END = 0xEF
   COM_VERSION = 0xFF
   
+  PLAYBACK_MODE_REPEAT = 0x00
+  PLAYBACK_MODE_REPEAT_FOLDER = 0x01
+  PLAYBACK_MODE_REPEAT_SINGLE = 0x02
+  PLAYBACK_MODE_RANDOM = 0x03
+  
   def __init__(self, uart_id, tx_pin, rx_pin):
     self._uart_id = uart_id
     self._uart = machine.UART(uart_id, 9600)
@@ -36,6 +41,7 @@ class Mp3Player:
       self._uart.init(9600, bits=8, parity=None, stop=1)
       
     self._uart.flush()
+    self._is_playing = False
     
 
   def _checksum(self, msg):
@@ -71,37 +77,62 @@ class Mp3Player:
     return in_bytes
 
   def reset(self):
-    self._send(self.RESET, payload=bytearray([0,1]))
+    self._send(self.RESET, payload=bytearray([0, 1]))
   
   def stop(self):
-    self._send(self.STOP, payload=bytearray([0,0]))
+    self._send(self.STOP, payload=bytearray([0, 0]))
+    self._is_playing = False
     
   def play(self):
-    self._send(self.PLAY_FOLDER, payload=bytearray([1,2])) 
+    self._send(self.PLAY_FOLDER, payload=bytearray([1, 2])) 
+    self._is_playing = True
 
-  def volume(self, level):
-    self._send(self.SET_VOLUME, payload=bytearray([0,level]))
+  def play_next(self):
+    self._send(self.NEXT, payload=bytearray([0, 0]))
+    self._is_playing = True
+    
+  def play_previous(self):
+    self._send(self.PREVIOUS, payload=bytearray([0, 0]))
+    self._is_playing = True
+
+  def play_random(self):
+    self._send(0x18, payload=bytearray([0, 0]))
+    self._is_playing = True
+
+  def set_playback_mode(self, pb_mode):
+    self._send(self.SET_PLAY_MODE, payload=bytearray([0, pb_mode]))
+    self._is_playing = True
+    
+  def set_volume(self, level):
+    self._send(self.SET_VOLUME, payload=bytearray([0, level]))
 
   def volume_up(self):
-    self._send(self.VOLUME_UP, payload=bytearray([0,0]))
+    self._send(self.VOLUME_UP, payload=bytearray([0, 0]))
 
   def volume_down(self):
-    self._send(self.VOLUME_DOWN, payload=bytearray([0,0]))
+    self._send(self.VOLUME_DOWN, payload=bytearray([0, 0]))
 
   def get_status(self):
     self._uart.flush()
-    self._send(self.GET_CURRENT_STATUS, payload=bytearray([0,0]))
+    self._send(self.GET_CURRENT_STATUS, payload=bytearray([0, 0]))
     result = self._receive()
     print(result)
+    
+  def is_playing(self):
+    return self._is_playing
     
 if __name__ == "__main__":
     mp3player = Mp3Player(1,17,16)
     #mp3player.reset()
     time.sleep(2)
-    mp3player.play()
-    #print(mp3player.get_status())
+    mp3player.set_playback_mode(Mp3Player.PLAYBACK_MODE_RANDOM)
     time.sleep(0.5)
-    mp3player.volume(5)
+    #mp3player.play()
+    #print(mp3player.get_status())
+    mp3player.set_volume(5)
+    time.sleep(0.5)
+    
+    mp3player.get_status()
     time.sleep(10)
     mp3player.stop()
   

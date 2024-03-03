@@ -97,22 +97,42 @@ def clock_button_action(button_code, event):
     print(app_context["state"])
     if app_context["state"] == AppState.CLOCK:
         print("state = clock")
-        if event == Button.RELEASED:
+        if event == Button.LONGPRESS:
+            if button_code == ButtonCode.LEFT:
+                # Start/stop the MP3 player
+                if mp3player.is_playing():
+                    mp3player.stop()
+                else:
+                    #mp3player.set_playback_mode(Mp3Player.PLAYBACK_MODE_RANDOM)
+                    mp3player.play_random()
+                    time.sleep(0.5)
+                    mp3player.set_volume(3)
+                    
+            elif button_code == ButtonCode.RIGHT:
+                # Toggle the light on/off
+                if app_context["neo"] != NeoState.LIGHT:
+                    neo.light((32,32,32), app_context["level"])
+                    app_context["neo"] = NeoState.LIGHT
+                else:
+                    app_context["neo"] = NeoState.TIME
+                    update_time()
+                    
+        elif event == Button.RELEASED:
            # Not displaying menu.
            print("Button released")
            if button_code == ButtonCode.RIGHT:
                print("Button right")
-               if app_context["neo"] != NeoState.LIGHT:
-                    neo.light((32,32,32), app_context["level"])
-                    app_context["neo"] = NeoState.LIGHT
-               else:
-                    app_context["neo"] = NeoState.TIME
-                    update_time()
+               if mp3player.is_playing():
+                    mp3player.play_next()    
+               #elif app_context["neo"] != NeoState.LIGHT:
+               #    neo.light((32,32,32), app_context["level"])
+               #    app_context["neo"] = NeoState.LIGHT
+               #else:
+               #    app_context["neo"] = NeoState.TIME
+               #    update_time()
            elif button_code == ButtonCode.LEFT:
                print("Button left")
-               mp3player.play()
-               time.sleep(0.5)
-               mp3player.volume(7)
+               mp3player.play_previous()
            elif button_code == ButtonCode.UP:
                mp3player.volume_up()
            elif button_code == ButtonCode.DOWN:
@@ -137,7 +157,7 @@ def button_action(button, event):
     button_code = Button_LUT[button]
     print("button_code :", button_code)
     
-    if event not in [Button.LONGPRESS, Button.RELEASED]:
+    if event not in [Button.LONGPRESS, Button.LONGPRESS_REPEAT, Button.LONGPRESS_RELEASED, Button.RELEASED]:
         return
     
     if app_context["state"] == AppState.MENU:
@@ -245,11 +265,17 @@ def menu_edit_time(button, event):
         
     if button == None:
         app_context["edit_time"] = 0
-    elif button == ButtonCode.UP and timestamp[time_index] < time_max:
-        timestamp[time_index] = timestamp[time_index] + 1
+    elif button == ButtonCode.UP:
+        if timestamp[time_index] < time_max:
+            timestamp[time_index] = timestamp[time_index] + 1
+        else:
+            timestamp[time_index] = 0
         is_modified = True
-    elif button == ButtonCode.DOWN and timestamp[time_index] > 0:
-        timestamp[time_index] = timestamp[time_index] - 1
+    elif button == ButtonCode.DOWN:
+        if timestamp[time_index] > 0:
+            timestamp[time_index] = timestamp[time_index] - 1
+        else:
+            timestamp[time_index] = time_max
         is_modified = True
     elif button == ButtonCode.RIGHT:
         app_context["edit_time"] = 1
@@ -271,7 +297,7 @@ def menu_edit_time(button, event):
         app_context["blink"]["blink0"] = (app_context["edit_time"] == 0)
         app_context["blink"]["blink1"] = (app_context["edit_time"] == 1)
         blink_display()
-    elif event == Button.LONGPRESS:
+    elif event in [Button.LONGPRESS, Button.LONGPRESS_REPEAT, Button.LONGPRESS_REPEAT]:
         # Do not blink when the user is doing a longpress
         app_context["blink"]["enable"] = False
         display_tm1637.numbers(timestamp[3], timestamp[4])
