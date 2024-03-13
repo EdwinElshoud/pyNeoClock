@@ -12,6 +12,8 @@ class MenuItem:
         self._on_exit = on_exit
         self._kwargs = kwargs
         self._children = {}
+        self._children_list = list()	# Create a list to maintain the order of creation
+        self._stored_index = 0
         
     def show_menu_struct(self, level):
         offset = "  " * level
@@ -27,7 +29,9 @@ class MenuItem:
         return len(self._children) == 0
     
     def add_child(self, child_menu_item):
-        self._children.append(child_menu_item)
+        key_name = child_menu_item.name()
+        self._children[key_name] = child_menu_item
+        self._children_list.append(key_name)
     
     def get_child_by_name(self, child_name):
         if child_name not in self._children:
@@ -40,13 +44,18 @@ class MenuItem:
         if len(self._children) == 0 or index >= len(self._children):
             print(f"Invalid index to child or no children: {index}")
             return None
-        
+        print(f"Child list: {self._children_list}")
+        print(f"index: {index}")
         # Create a list with all the key values of the children
-        submenu_items = list(self._children.keys())
-        return self._children[submenu_items[index]]
+        #submenu_items = list(self._children.keys())
+        #return self._children[submenu_items[index]]
+        return self._children[self._children_list[index]]
     
     def children(self):
         return self._children
+    
+    def child_list(self):
+        return self._children_list
     
     def on_enter(self, **kwargs):
         # Execute the callback function when menu item is entered
@@ -90,8 +99,13 @@ class MenuItem:
                 args.update(self._kwargs)
 
             self._on_process(**args)
-            
+                    
+    def push_index(self, index):
+        self._stored_index = index
         
+    def pop_index(self):
+        return self._stored_index
+    
 class Menu:
     def __init__(self):
         self._main_menu = {"*MENU*": MenuItem("menu"),}
@@ -113,8 +127,8 @@ class Menu:
         print(self._breadcrums)
         
     def start(self):
-        submenu_items = list(self._main_menu["*MENU*"].children().keys())
-        #self._breadcrums.append(submenu_items[0])
+        #submenu_items = list(self._main_menu["*MENU*"].children().keys())
+        submenu_items = self._main_menu["*MENU*"].child_list()
         self._submenu_index = 0
         self._state = MenuState.IN_MENU
 
@@ -125,17 +139,34 @@ class Menu:
         
         return active_menu_item.get_child_by_index(self._submenu_index).name()
                                                        
+#     def add_menu_item(self, menu_path, on_enter=None, on_process=None, on_exit=None, kwargs=None):
+#         leaf_element = menu_path.pop()
+#         childlist = self._main_menu["*MENU*"].children()
+#         
+#         for i in menu_path:
+#             if i not in childlist:
+#                 # menu element in the menu path does not exist yet
+#                 childlist[i] = MenuItem(i, None, None, None)
+#             childlist = childlist[i].children()
+#             
+#         childlist[leaf_element] = MenuItem(leaf_element, on_enter, on_process, on_exit, kwargs)
+
     def add_menu_item(self, menu_path, on_enter=None, on_process=None, on_exit=None, kwargs=None):
         leaf_element = menu_path.pop()
-        childlist = self._main_menu["*MENU*"].children()
+        menu_item = self._main_menu["*MENU*"]
         
+        # Traverse into the path and create elements that do not exist yet.
         for i in menu_path:
-            if i not in childlist:
+            if menu_item.get_child_by_name(i) is None:
                 # menu element in the menu path does not exist yet
-                childlist[i] = MenuItem(i, None, None, None)
-            childlist = childlist[i].children()
+                new_item = MenuItem(i, None, None, None)
+                menu_item.add_child(new_item)
+                menu_item = new_item
+            else:
+                menu_item = menu_item.get_child_by_name(i)
             
-        childlist[leaf_element] = MenuItem(leaf_element, on_enter, on_process, on_exit, kwargs)
+        menu_item.add_child(MenuItem(leaf_element, on_enter, on_process, on_exit, kwargs))
+
 
     def _get_current_menu_item(self, breadcrum):
         """
@@ -172,14 +203,15 @@ class Menu:
             # Call the on_exit callback and remove last element from breadcrums
             active_menu.on_exit()
             self._breadcrums.pop()
-            self._submenu_index = 0
+            self._submenu_index = self._get_current_menu_item(self._breadcrums).pop_index()
             self._state = MenuState.IN_MENU
             
         return self._state
     
     def _button_event_traverse(self, active_menu, button, event):
         # Process button event to traverse through menu
-        submenu_items = list(active_menu.children().keys())
+        #submenu_items = list(active_menu.children().keys())
+        submenu_items = active_menu.child_list()
         print(f"submenu items = {submenu_items}")
         if button == ButtonCode.DOWN:
             print("Button DOWN")
@@ -202,6 +234,9 @@ class Menu:
             if submenu_name == "exit":
                 self._state = MenuState.EXIT
             else:
+                # Store the current position in the submenu
+                active_menu.push_index(self._submenu_index)
+                # Now go deeper into the menu, add to breadcrums
                 self._breadcrums.append(submenu_name)
                 new_active_menu_item = self._get_current_menu_item(self._breadcrums)
                 # Execute the on_enter callback (if defined)
@@ -216,8 +251,12 @@ class Menu:
             
         elif button == ButtonCode.ESCAPE:
             print("Button ESCAPE")
-            self._breadcrums.pop()
-            
+            if len(self._breadcrums) > 1:
+                self._breadcrums.pop()
+                # Restore the location
+                new_active_menu_item = self._get_current_menu_item(self._breadcrums)
+                self._submenu_index = new_active_menu_item.pop_index()
+                
             new_active_menu_item = self._get_current_menu_item(self._breadcrums)
             new_active_menu_item.on_exit()
 
@@ -226,7 +265,7 @@ class Menu:
 
 
 def test(menu, buttoncode):
-    print(f"Menu: {menu.text()}")
+    print(f"Menu: {menu.menu_text()}")
     return menu.button_event(buttoncode, None)
 
 

@@ -76,6 +76,9 @@ class Mp3Player:
     in_bytes = self._uart.read()
     return in_bytes
 
+  def stdby(self):
+    self._send(self.SET_STDBY, payload=bytearray([0, 0]))
+    
   def reset(self):
     self._send(self.RESET, payload=bytearray([0, 1]))
   
@@ -96,7 +99,11 @@ class Mp3Player:
     self._is_playing = True
 
   def play_random(self):
+    # Start random play
     self._send(0x18, payload=bytearray([0, 0]))
+    time.sleep(0.5)
+    # Enable loop all
+    self._send(0x11, payload=bytearray([0,1]))
     self._is_playing = True
 
   def set_playback_mode(self, pb_mode):

@@ -55,17 +55,27 @@ Button_LUT = {
     PUSHBUTTON_DOWN_PIN: ButtonCode.DOWN
 }
 
+DAY_LUT = ("mon ", "tues", "wed ", "thur", "fri ", "sat ", "sun ")
+
 app_context = {
     "state": AppState.INIT,
     "neo": NeoState.TIME,
     "level": 20,
-    "edit_time": {
+    "edit_time": {					# for editing time [hh:mm]
         "time": [0, 0],
         "index": 0,
         "is_modified": False,
     },
-    "edit_duration": {
+    "edit_value": {					# for editing integer settings
         "value": 0,
+        "is_modified": False,
+    },
+    "edit_bool": {					# for editing boolean settings
+        "state": False,
+        "is_modified": False,
+    },
+    "edit_day": {					# for editing weekdays
+        "day": False,
         "is_modified": False,
     },
     "blink": {
@@ -77,11 +87,28 @@ app_context = {
         "counter": 0,
     },
     "alarm": [
-        {"hour": 21, "min": 28, "duration": 3, "mode": AlarmMode.LIGHT, "countdown": 0},
-        {"hour": 7, "min":0, "duration": 30, "mode": AlarmMode.LIGHT, "countdown": 0}
+        {"enabled": True,
+         "hour": 13,
+         "min": 5,
+         "duration": 3,
+         "mode": AlarmMode.MUSIC_AND_LIGHT,
+         "volume": 7,
+         "countdown": 0,
+         "days" : [True, True, True, True, True, True, True],
+         },
+        {"enabled": True,
+         "hour": 13,
+         "min": 15,
+         "duration": 5,
+         "mode": AlarmMode.MUSIC_AND_LIGHT,
+         "volume": 3,
+         "countdown": 0,
+         "days" : [True, True, True, True, True, True, True],
+         },
         ]
     }
 
+# --------------------------------------------------------------------
 def menu_button_action(button, button_event):
     res = menu.button_event(button, button_event)
     print("res(menu.button_event): ",  res)
@@ -92,6 +119,9 @@ def menu_button_action(button, button_event):
         menu_text = menu.menu_text()
         if menu_text:
             print("Menu text : ", menu_text)
+            if len(menu_text) < 4: 
+                # Clear the contents before writing new text to prevent old characters to stay visible.
+                display_tm1637.show("    ")
             display_tm1637.show(menu_text)
     elif res == MenuState.IN_CALLBACK:
         print("In callback")
@@ -101,9 +131,17 @@ def menu_button_action(button, button_event):
     
     return AppState.MENU
 
+# --------------------------------------------------------------------
 def clock_button_action(button_code, event):
     print(app_context["state"])
-    if app_context["state"] == AppState.CLOCK:
+    if app_context["state"] == AppState.ALARM:
+        # Stop alarm(s) and go back to clock mode
+        if mp3player.is_playing():
+            mp3player.stop()
+        app_context["alarm"][0]["duration"] = 0
+        app_context["alarm"][1]["duration"] = 0
+        app_context["state"] = AppState.CLOCK
+    elif app_context["state"] == AppState.CLOCK:
         print("state = clock")
         if event == Button.LONGPRESS:
             if button_code == ButtonCode.LEFT:
@@ -126,25 +164,35 @@ def clock_button_action(button_code, event):
                     update_time()
                     
         elif event == Button.RELEASED:
-           # Not displaying menu.
-           print("Button released")
-           if button_code == ButtonCode.RIGHT:
-               print("Button right")
-               if mp3player.is_playing():
-                    mp3player.play_next()    
-               #elif app_context["neo"] != NeoState.LIGHT:
-               #    neo.light((32,32,32), app_context["level"])
-               #    app_context["neo"] = NeoState.LIGHT
-               #else:
-               #    app_context["neo"] = NeoState.TIME
-               #    update_time()
-           elif button_code == ButtonCode.LEFT:
-               print("Button left")
-               mp3player.play_previous()
-           elif button_code == ButtonCode.UP:
-               mp3player.volume_up()
-           elif button_code == ButtonCode.DOWN:
-               mp3player.volume_down()
+            # Not displaying menu.
+            print("Button released")
+            if button_code == ButtonCode.RIGHT:
+                print("Button right")
+                if mp3player.is_playing():
+                     mp3player.play_next()    
+                #elif app_context["neo"] != NeoState.LIGHT:
+                #    neo.light((32,32,32), app_context["level"])
+                #    app_context["neo"] = NeoState.LIGHT
+                #else:
+                #    app_context["neo"] = NeoState.TIME
+                #    update_time()
+            elif button_code == ButtonCode.LEFT:
+                print("Button left")
+                if mp3player.is_playing():
+                    mp3player.play_previous()
+            elif button_code == ButtonCode.UP:
+                if mp3player.is_playing():
+                    mp3player.volume_up()
+                else:
+                    # Todo: display alarm 1 time for short period (or only do when pressed???) 
+                    pass
+            elif button_code == ButtonCode.DOWN:
+                if mp3player.is_playing():
+                    mp3player.volume_down()
+                else:
+                    # Todo: display alarm 2 time for short period (or only do when pressed???)
+                    pass
+                   
 #           elif pin == PUSHBUTTON_UP_PIN:
 #             app_context["level"] = app_context["level"] + 5
 #             if app_context["level"] > 100:
@@ -159,6 +207,7 @@ def clock_button_action(button_code, event):
 #             neo.light((64,64,64), app_context["level"])
         
 
+# --------------------------------------------------------------------
 def button_action(button, event):
     print("Button : ", button)
     print("Event  : ", event)
@@ -185,9 +234,15 @@ def button_action(button, event):
             print("forward to clock_button_action")
             clock_button_action(button_code, event)
 
+# --------------------------------------------------------------------
 def rtc_init():
     """
     Initialize and synchronize the internal RTC with the external RTC.
+    
+    Reading time from:	Tuple:
+    Internal RTC 		(year, month, day, weekday, hours, minutes, seconds, subseconds)
+    External RTC 		(YY, MM, DD, hh, mm, ss, wday - 1, 0)
+
     """
     print(f"Int. RTC : {internal_rtc.datetime()}")
     timestamp = external_rtc.get_time()
@@ -200,7 +255,7 @@ def rtc_init():
     # update internal timestamp
     internal_rtc.datetime(timestamp)
 
-
+# --------------------------------------------------------------------
 def check_alarm(alarm, hour, min):
     """
     alarm - alarm entry from app_context
@@ -209,13 +264,21 @@ def check_alarm(alarm, hour, min):
     """
     if alarm["countdown"] > 0:
         alarm["countdown"] = alarm["countdown"] - 1
-    elif alarm["hour"] == hour and alarm["min"] == min:
+    elif alarm["enabled"] and alarm["hour"] == hour and alarm["min"] == min:
         # Activate the alarm
         alarm["countdown"] = alarm["duration"]
-        if alarm["mode"] == AlarmMode.LIGHT:
+        if alarm["mode"] in [AlarmMode.LIGHT, AlarmMode.MUSIC_AND_LIGHT]:
             neo.light((64,64,64), 20)
             app_context["neo"] = NeoState.LIGHT
             
+        if alarm["mode"] in [AlarmMode.MUSIC, AlarmMode.MUSIC_AND_LIGHT]:
+            mp3player.reset()
+            time.sleep(2)
+            mp3player.play_random()
+            time.sleep(0.5)
+            mp3player.set_volume(alarm["volume"])
+            
+# --------------------------------------------------------------------
 def has_active_alarm():
     """
     Check if one or more alarms are active
@@ -228,6 +291,8 @@ def has_active_alarm():
             
     return is_active
 
+
+# --------------------------------------------------------------------
 def update_time(t=None):
     print("Update time display")
     timestamp = external_rtc.get_time()
@@ -240,6 +305,11 @@ def update_time(t=None):
 
     if has_active_alarm():
         app_context["state"] = AppState.ALARM
+    elif app_context["state"] == AppState.ALARM:
+        # No alarm is active and state is still ALARM... go back to CLOCK
+        app_context["neo"] = NeoState.TIME
+        app_context["state"] = AppState.CLOCK
+        mp3player.stop()
     else:
         app_context["neo"] = NeoState.TIME
     
@@ -251,6 +321,8 @@ def update_time(t=None):
     if app_context["neo"] == NeoState.TIME:
         neo.show_time(timestamp[3], timestamp[4])
 
+
+# --------------------------------------------------------------------
 def menu_edit_time_start(target):
     if target == "system":
         # Prepare to edit the system time
@@ -260,12 +332,12 @@ def menu_edit_time_start(target):
         app_context["edit_time"]["time"][1] = timestamp[4]	# minutes
     elif target == "alarm_1":
         # Prepare to edit alarm 1 time
-        app_context["edit_time"]["time"][0] = 0	# hours
-        app_context["edit_time"]["time"][1] = 0 # minutes
+        app_context["edit_time"]["time"][0] = app_context["alarm"][0]["hour"]	# hours
+        app_context["edit_time"]["time"][1] = app_context["alarm"][0]["min"] # minutes
     elif target == "alarm_2":
         # Prepare to edit alarm 2 time
-        app_context["edit_time"]["time"][0] = 0 # hours
-        app_context["edit_time"]["time"][1] = 0 # minutes
+        app_context["edit_time"]["time"][0] = app_context["alarm"][1]["hour"] # hours
+        app_context["edit_time"]["time"][1] = app_context["alarm"][1]["min"] # minutes
         
     app_context["edit_time"]["index"] = 0
     app_context["edit_time"]["is_modified"] = False
@@ -280,6 +352,7 @@ def menu_edit_time_start(target):
     blink_display()
 
 
+# --------------------------------------------------------------------
 def menu_edit_time_store(target):
     if target == "system":
         # Store the edit time into the RTC
@@ -293,14 +366,17 @@ def menu_edit_time_store(target):
         
     elif target == "alarm_1":
         # Store the edit time into alarm 1
-        pass
+        app_context["alarm"][0]["hour"] = app_context["edit_time"]["time"][0]
+        app_context["alarm"][0]["min"] = app_context["edit_time"]["time"][1]
     elif target == "alarm_2":
         # Store the edit time into alarm 2
-        pass
+        app_context["alarm"][1]["hour"] = app_context["edit_time"]["time"][0]
+        app_context["alarm"][1]["min"] = app_context["edit_time"]["time"][1]
     
     app_context["blink"]["enable"] = False
         
 
+# --------------------------------------------------------------------
 def menu_edit_time(target, button, event):
     """
     Edit the time
@@ -354,6 +430,7 @@ def menu_edit_time(target, button, event):
         display_tm1637.numbers(app_context["edit_time"]["time"][0], app_context["edit_time"]["time"][1])
     
     
+# --------------------------------------------------------------------
 def blink_display(t=None):
     #print(f"blink={app_context["blink"]["enable"]}")
     if app_context["blink"]["enable"] == False:
@@ -388,58 +465,203 @@ def blink_display(t=None):
     #print("Blink text: ", text)
     display_tm1637.show(text, colon=not do_blink)
     
+# --------------------------------------------------------------------
+def menu_edit_value_start(target, name, min_value, max_value):
+    if target == "alarm_1":
+        app_context["edit_value"]["value"] = app_context["alarm"][0][name]
         
+    elif target == "alarm_2":
+        app_context["edit_value"]["value"] = app_context["alarm"][1][name]
+        
+    else:
+        print(f"ERROR[menu_edit_value_start]::Unknown target name")
+        return
     
-def menu_edit_alarm_time(alarm, button, event):
-    """
+    # call menu_edit_value to force display of value
+    menu_edit_value(target, name, min_value, max_value, button=None, event=None)
+    
 
+# --------------------------------------------------------------------
+def menu_edit_value_store(target, name, min_value, max_value):
+    if target == "alarm_1":
+        app_context["alarm"][0][name] = app_context["edit_value"]["value"]
+    elif target == "alarm_2":
+        app_context["alarm"][1][name] = app_context["edit_value"]["value"]
+    else:
+        print(f"ERROR[menu_edit_value_start]::Unknown target name")
+
+
+# --------------------------------------------------------------------
+def menu_edit_value(target, name, min_value, max_value, button, event):
+    """
     alarm: id/index of alarm
     button: left/right/up/down/escape
     event:  pressed/released/longpress
     """
-    print("Edit alarm time")
-    print("Alarm : ", alarm)
-    print("Button : ", button)
-
-def menu_edit_alarm_duration(alarm, button, event):
-    """
-
-    alarm: id/index of alarm
-    button: left/right/up/down/escape
-    event:  pressed/released/longpress
-    """
-    print("Edit alarm duration")
-    print(app_context["alarm"][alarm])
-    print("Alarm : ", alarm)
-    print("Button : ", button)
-    if button == ButtonCode.UP:
-        app_context["alarm"][alarm]["duration"] += 1
-    elif button == ButtonCode.DOWN:
-        app_context["alarm"][alarm]["duration"] -= 1
+    edit_value = app_context["edit_value"]["value"]
+    print("Edit value")
+    print(edit_value)
+    if button == ButtonCode.UP and edit_value < max_value:
+        edit_value += 1
+    elif button == ButtonCode.DOWN and edit_value > min_value:
+        edit_value -= 1
     
-    if app_context["alarm"][alarm]["duration"] < 0:
-        app_context["alarm"][alarm]["duration"]=0
-    if app_context["alarm"][alarm]["duration"] > 59:
-        app_context["alarm"][alarm]["duration"] = 59
+    if edit_value < min_value:
+        edit_value = min_value
+    if edit_value > max_value:
+        edit_value = max_value
+    
+    app_context["edit_value"]["value"] = edit_value   
+    display_tm1637.number(edit_value)
+    
+    
+# --------------------------------------------------------------------
+def menu_edit_bool_start(target, name):
+    alarm = None
+    if target == "alarm_1":
+        alarm = 1
+    elif target == "alarm_2":
+        alarm = 2
+    else:
+        return	# Error condition
+    
+    if "days" in name:
+        day = int(name.split(":")[1])
+        app_context["edit_bool"]["state"] = app_context["alarm"][alarm]["days"][day]
+    else:
+        app_context["edit_bool"]["state"] = app_context["alarm"][alarm][name]
         
-    display_tm1637.number(app_context["alarm"][alarm]["duration"] )
+    menu_edit_bool(target, name, button=None, event=None)
+    
+    
+# --------------------------------------------------------------------
+def menu_edit_bool_store(target, name):
+    alarm = None
+    if target == "alarm_1":
+        alarm = 1
+    elif target == "alarm_2":
+        alarm = 2
+    else:
+        return	# Error condition
 
-def create_menu():
-    menu.add_menu_item(["musc"], on_process=menu_edit_time)
-    menu.add_menu_item(["lght"], on_process=menu_edit_time)
-    menu.add_menu_item(["time"],
+    if "days" in name:
+        day = int(name.split(":")[1])
+        app_context["alarm"][alarm]["days"][day] = app_context["edit_bool"]["state"]
+    else:
+        app_context["alarm"][alarm][name] = app_context["edit_bool"]["state"]
+    
+
+# --------------------------------------------------------------------
+def menu_edit_bool(target, name, button, event):
+    edit_value = app_context["edit_bool"]["state"]
+    
+    if button in [ButtonCode.UP, ButtonCode.DOWN]:
+        edit_value = not edit_value
+
+    app_context["edit_bool"]["state"] = edit_value
+    if edit_value:
+        display_tm1637.show("on  ")
+    else:
+        display_tm1637.show("off ")
+        
+
+    
+# --------------------------------------------------------------------
+def menu_edit_day_start(target):
+    if target == "system":
+        timestamp = list(external_rtc.get_time())
+        app_context["edit_day"]["day"] = timestamp[6]	# weekday
+
+    menu_edit_day(target, button=None, event=None)
+    
+    
+# --------------------------------------------------------------------
+def menu_edit_day_store(target):
+    if target == "system":
+        timestamp = list(external_rtc.get_time())
+        timestamp[6] = app_context["edit_day"]["day"]
+        external_rtc.set_time(timestamp)
+
+# --------------------------------------------------------------------
+def menu_edit_day(target, button, event):
+    edit_value = app_context["edit_day"]["day"]
+    # Direction is swapped: DOWN button => mon -> sun (which is increading in number) 
+    if button == ButtonCode.DOWN and edit_value < 6:
+        edit_value += 1
+    elif button == ButtonCode.UP and edit_value > 0:
+        edit_value -= 1
+
+    app_context["edit_day"]["day"] = edit_value
+    print(f"Weekday = {edit_value} --> {DAY_LUT[edit_value]}")
+    display_tm1637.show(DAY_LUT[edit_value])
+
+# --------------------------------------------------------------------
+def create_time_menu_item(path, kwargs):
+    menu.add_menu_item(path,
                        on_enter=menu_edit_time_start,
                        on_process=menu_edit_time,
                        on_exit=menu_edit_time_store,
-                       kwargs={"target": "system", })
-    menu.add_menu_item(["alm1", "time"], on_process=menu_edit_time, kwargs={"target": "alarm_1", })
-    menu.add_menu_item(["alm1", "days"], on_process=menu_edit_alarm_duration, kwargs={"alarm": 1, })
-    menu.add_menu_item(["alm1", "dura"], on_process=menu_edit_alarm_duration, kwargs={"alarm": 1, })
-    menu.add_menu_item(["alm2", "time"], on_process=menu_edit_alarm_time, kwargs={"target": "alarm_2", })
-    menu.add_menu_item(["alm2", "days"], on_process=menu_edit_alarm_duration, kwargs={"alarm": 2, })
-    menu.add_menu_item(["alm2", "dura"], on_process=menu_edit_alarm_duration, kwargs={"alarm": 2, })
+                       kwargs=kwargs)
+
+# --------------------------------------------------------------------
+def create_value_menu_item(path, kwargs):
+    menu.add_menu_item(path,
+                       on_enter=menu_edit_value_start,
+                       on_process=menu_edit_value,
+                       on_exit=menu_edit_value_store,
+                       kwargs=kwargs)
+
+# --------------------------------------------------------------------
+def create_bool_menu_item(path, kwargs):
+    menu.add_menu_item(path,
+                       on_enter=menu_edit_bool_start,
+                       on_process=menu_edit_bool,
+                       on_exit=menu_edit_bool_store,
+                       kwargs=kwargs)
+
+def create_day_menu_item(path, kwargs):
+    menu.add_menu_item(path,
+                       on_enter=menu_edit_day_start,
+                       on_process=menu_edit_day,
+                       on_exit=menu_edit_day_store,
+                       kwargs=kwargs)
+
+# --------------------------------------------------------------------
+def create_menu():
+    menu.add_menu_item(["musc"], on_process=menu_edit_time)
+    menu.add_menu_item(["lght"], on_process=menu_edit_time)
+    create_time_menu_item(["syst", "time"], kwargs={"target": "system", })
+    create_day_menu_item(["syst", "day"], kwargs={"target": "system", })
+    # Alarm 1
+    create_bool_menu_item(["alm1", "enbl"],
+                          kwargs={"target": "alarm_1", "name": "enabled"})
+    create_time_menu_item(["alm1", "time"], kwargs={"target": "alarm_1", })
+    create_bool_menu_item(["alm1", "days", "mon"], kwargs={"target": "alarm_1", "name": "days:0"})
+    create_bool_menu_item(["alm1", "days", "tues"], kwargs={"target": "alarm_1", "name": "days:1"})
+    create_bool_menu_item(["alm1", "days", "wed"], kwargs={"target": "alarm_1", "name": "days:2"})
+    create_bool_menu_item(["alm1", "days", "thur"], kwargs={"target": "alarm_1", "name": "days:3"})
+    create_bool_menu_item(["alm1", "days", "fri"], kwargs={"target": "alarm_1", "name": "days:4"})
+    create_bool_menu_item(["alm1", "days", "sat"], kwargs={"target": "alarm_1", "name": "days:5"})
+    create_bool_menu_item(["alm1", "days", "sun"], kwargs={"target": "alarm_1", "name": "days:6"})
+    create_value_menu_item(["alm1", "dura"],
+                           kwargs={"target": "alarm_1", "name": "duration", "min_value": 0, "max_value": 59, })
+    create_value_menu_item(["alm1", "vol"],
+                           kwargs={"target": "alarm_1", "name": "volume", "min_value": 0, "max_value": 7, })
+    # Alarm 2
+    create_time_menu_item(["alm2", "time"], kwargs={"target": "alarm_2", })
+    create_bool_menu_item(["alm2", "days", "mon"], kwargs={"target": "alarm_2", "name": "days:mon"})
+    create_bool_menu_item(["alm2", "days", "tues"], kwargs={"target": "alarm_2", "name": "days:tues"})
+    
+    
+    create_value_menu_item(["alm2", "dura"],
+                           kwargs={"target": "alarm_2", "name": "duration", "min_value": 0, "max_value": 59,})
+    create_value_menu_item(["alm2", "vol"],
+                           kwargs={"target": "alarm_2", "name": "volume", "min_value": 0, "max_value": 7, })
     
 
+# --------------------------------------------------------------------
+# Main entry point
+# --------------------------------------------------------------------
 def main():
     button_list = [
         Button(PUSHBUTTON_LEFT_PIN, int(ButtonCode.LEFT), callback = button_action, internal_pulldown=True),
