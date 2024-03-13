@@ -11,7 +11,7 @@ from machine import Timer
 from device.Button import Button
 from device.dfplayermini import Mp3Player
 
-from menu.menu import *
+from menu.menu2 import *
 import helpers
 
 DFPLAYER_SERIALPORT = 2
@@ -59,7 +59,15 @@ app_context = {
     "state": AppState.INIT,
     "neo": NeoState.TIME,
     "level": 20,
-    "edit_time": 0,
+    "edit_time": {
+        "time": [0, 0],
+        "index": 0,
+        "is_modified": False,
+    },
+    "edit_duration": {
+        "value": 0,
+        "is_modified": False,
+    },
     "blink": {
         "enable": False,
         "value0": 0,
@@ -79,7 +87,7 @@ def menu_button_action(button, button_event):
     print("res(menu.button_event): ",  res)
         
     if res == MenuState.IN_MENU:
-        app_context["blink"]["enable"] = False
+        #app_context["blink"]["enable"] = False
         print("In menu: ", menu.menu_text())
         menu_text = menu.menu_text()
         if menu_text:
@@ -168,8 +176,9 @@ def button_action(button, event):
         if button_code == ButtonCode.ESCAPE:
             print("button = escape")
             app_context["state"] = AppState.MENU
-            menu.reset()
-            display_tm1637.scroll("menu", 160)
+            # menu.reset()
+            menu.start()
+            #display_tm1637.scroll("menu", 160)
             if menu.menu_text() is not None:
                 display_tm1637.show(menu.menu_text())
         else:
@@ -242,8 +251,57 @@ def update_time(t=None):
     if app_context["neo"] == NeoState.TIME:
         neo.show_time(timestamp[3], timestamp[4])
 
+def menu_edit_time_start(target):
+    if target == "system":
+        # Prepare to edit the system time
+        timestamp = list(external_rtc.get_time())
+        #print(timestamp)
+        app_context["edit_time"]["time"][0] = timestamp[3]	# hours
+        app_context["edit_time"]["time"][1] = timestamp[4]	# minutes
+    elif target == "alarm_1":
+        # Prepare to edit alarm 1 time
+        app_context["edit_time"]["time"][0] = 0	# hours
+        app_context["edit_time"]["time"][1] = 0 # minutes
+    elif target == "alarm_2":
+        # Prepare to edit alarm 2 time
+        app_context["edit_time"]["time"][0] = 0 # hours
+        app_context["edit_time"]["time"][1] = 0 # minutes
+        
+    app_context["edit_time"]["index"] = 0
+    app_context["edit_time"]["is_modified"] = False
+    
+    # Show a blinking time on the display
+    app_context["blink"]["value0"] = app_context["edit_time"]["time"][0] #timestamp[3]
+    app_context["blink"]["value1"] = app_context["edit_time"]["time"][1]  #timestamp[4]
+    app_context["blink"]["blink0"] = (app_context["edit_time"]["index"] == 0)
+    app_context["blink"]["blink1"] = (app_context["edit_time"]["index"] == 1)
+    app_context["blink"]["counter"] = 0
+    app_context["blink"]["enable"] = True
+    blink_display()
 
-def menu_edit_time(button, event):
+
+def menu_edit_time_store(target):
+    if target == "system":
+        # Store the edit time into the RTC
+        timestamp = list(external_rtc.get_time())
+        #print(timestamp)
+        timestamp[3] = app_context["edit_time"]["time"][0]	# hours
+        timestamp[4] = app_context["edit_time"]["time"][1]	# minutes
+        print("Adjusting external RTC")
+        external_rtc.set_time(timestamp)
+        internal_rtc.datetime(timestamp)
+        
+    elif target == "alarm_1":
+        # Store the edit time into alarm 1
+        pass
+    elif target == "alarm_2":
+        # Store the edit time into alarm 2
+        pass
+    
+    app_context["blink"]["enable"] = False
+        
+
+def menu_edit_time(target, button, event):
     """
     Edit the time
 
@@ -251,59 +309,53 @@ def menu_edit_time(button, event):
     event:  pressed/released/longpress
     """
     is_modified = False
-    #print("Edit time")
-    #print("Button : ", button) 
+    index = app_context["edit_time"]["index"]
     
-    timestamp = list(external_rtc.get_time())
-    print(timestamp)
-    if app_context["edit_time"] is None or app_context["edit_time"] == 0:
-        time_index = 3	# index to hour
-        time_max = 23
+    if index == 0:
+        time_max = 23	# When editing hours
     else:
-        time_index = 4	# index to minutes
-        time_max = 59
-        
-    if button == None:
-        app_context["edit_time"] = 0
-    elif button == ButtonCode.UP:
-        if timestamp[time_index] < time_max:
-            timestamp[time_index] = timestamp[time_index] + 1
+        time_max = 59	# When editing minutes
+    
+    edit_value = app_context["edit_time"]["time"][index]
+    if button == ButtonCode.UP:
+        if edit_value < time_max:
+            edit_value = edit_value + 1
         else:
-            timestamp[time_index] = 0
-        is_modified = True
+            edit_value = 0
+        app_context["edit_time"]["is_modified"] = True
+        app_context["edit_time"]["time"][index] = edit_value
+
     elif button == ButtonCode.DOWN:
-        if timestamp[time_index] > 0:
-            timestamp[time_index] = timestamp[time_index] - 1
+        if edit_value > 0:
+            edit_value = edit_value - 1
         else:
-            timestamp[time_index] = time_max
-        is_modified = True
+            edit_value = time_max
+        app_context["edit_time"]["is_modified"] = True
+        app_context["edit_time"]["time"][index] = edit_value
+
     elif button == ButtonCode.RIGHT:
-        app_context["edit_time"] = 1
+        app_context["edit_time"]["index"] = 1
+
     elif button == ButtonCode.LEFT:
-        app_context["edit_time"] = 0
-        
-    # Update the RTC when modified
-    if is_modified:
-        print("Adjusting external RTC")
-        external_rtc.set_time(timestamp)
-        internal_rtc.datetime(timestamp)
-        
+        app_context["edit_time"]["index"] = 0
+                
     # Display the time setting
     if event == Button.RELEASED:
         # Blink the number that is edited.
         app_context["blink"]["enable"] = True
-        app_context["blink"]["value0"] = timestamp[3]
-        app_context["blink"]["value1"] = timestamp[4]
-        app_context["blink"]["blink0"] = (app_context["edit_time"] == 0)
-        app_context["blink"]["blink1"] = (app_context["edit_time"] == 1)
+        app_context["blink"]["value0"] = app_context["edit_time"]["time"][0] #timestamp[3]
+        app_context["blink"]["value1"] = app_context["edit_time"]["time"][1]  #timestamp[4]
+        app_context["blink"]["blink0"] = (app_context["edit_time"]["index"] == 0)
+        app_context["blink"]["blink1"] = (app_context["edit_time"]["index"] == 1)
         blink_display()
     elif event in [Button.LONGPRESS, Button.LONGPRESS_REPEAT, Button.LONGPRESS_REPEAT]:
         # Do not blink when the user is doing a longpress
         app_context["blink"]["enable"] = False
-        display_tm1637.numbers(timestamp[3], timestamp[4])
+        display_tm1637.numbers(app_context["edit_time"]["time"][0], app_context["edit_time"]["time"][1])
     
     
 def blink_display(t=None):
+    #print(f"blink={app_context["blink"]["enable"]}")
     if app_context["blink"]["enable"] == False:
         return
     # get the values that need to be displayed (or not).
@@ -373,15 +425,19 @@ def menu_edit_alarm_duration(alarm, button, event):
     display_tm1637.number(app_context["alarm"][alarm]["duration"] )
 
 def create_menu():
-    menu.add_item(["musc"], menu_edit_time)
-    menu.add_item(["lght"], menu_edit_time)
-    menu.add_item(["time"], menu_edit_time)
-    menu.add_item(["alm1", "time"], menu_edit_alarm_time, {"alarm": 0, })
-    menu.add_item(["alm1", "days"], menu_edit_alarm_duration, {"alarm": 0, })
-    menu.add_item(["alm1", "dura"], menu_edit_alarm_duration, {"alarm": 0, })
-    menu.add_item(["alm2", "time"], menu_edit_alarm_time, {"alarm": 1, })
-    menu.add_item(["alm2", "days"], menu_edit_alarm_duration, {"alarm": 1, })
-    menu.add_item(["alm2", "dura"], menu_edit_alarm_duration, {"alarm": 1, })
+    menu.add_menu_item(["musc"], on_process=menu_edit_time)
+    menu.add_menu_item(["lght"], on_process=menu_edit_time)
+    menu.add_menu_item(["time"],
+                       on_enter=menu_edit_time_start,
+                       on_process=menu_edit_time,
+                       on_exit=menu_edit_time_store,
+                       kwargs={"target": "system", })
+    menu.add_menu_item(["alm1", "time"], on_process=menu_edit_time, kwargs={"target": "alarm_1", })
+    menu.add_menu_item(["alm1", "days"], on_process=menu_edit_alarm_duration, kwargs={"alarm": 1, })
+    menu.add_menu_item(["alm1", "dura"], on_process=menu_edit_alarm_duration, kwargs={"alarm": 1, })
+    menu.add_menu_item(["alm2", "time"], on_process=menu_edit_alarm_time, kwargs={"target": "alarm_2", })
+    menu.add_menu_item(["alm2", "days"], on_process=menu_edit_alarm_duration, kwargs={"alarm": 2, })
+    menu.add_menu_item(["alm2", "dura"], on_process=menu_edit_alarm_duration, kwargs={"alarm": 2, })
     
 
 def main():
