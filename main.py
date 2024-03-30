@@ -1,9 +1,10 @@
-from machine import SoftI2C, Pin
+from machine import SoftI2C, Pin, reset
 import os
 import ugit
 import network
 import settings
- 
+import json
+
 from neopixel import NeoPixel
 import time
 from machine import RTC
@@ -614,6 +615,29 @@ def menu_edit_day(target, button, event):
     display_tm1637.show(DAY_LUT[edit_value])
 
 # --------------------------------------------------------------------
+def menu_action_start(target):
+    if target == "system":
+        display_tm1637.show("Go--")
+        #timestamp = list(external_rtc.get_time())
+        #app_context["edit_day"]["day"] = timestamp[6]	# weekday
+
+    menu_action(target, button=None, event=None)
+ 
+
+# --------------------------------------------------------------------
+def menu_action(target, button, event):
+    #edit_value = app_context["edit_day"]["day"]
+    # Direction is swapped: DOWN button => mon -> sun (which is increading in number) 
+    if button == ButtonCode.RIGHT:
+        with open(settings.UPDATE_FILE, 'w') as f:
+            f.write("do:update")
+        reset()
+
+    #app_context["edit_day"]["day"] = edit_value
+    #print(f"Weekday = {edit_value} --> {DAY_LUT[edit_value]}")
+    display_tm1637.show("Go--")
+
+# --------------------------------------------------------------------
 def create_time_menu_item(path, kwargs):
     menu.add_menu_item(path,
                        on_enter=menu_edit_time_start,
@@ -644,12 +668,20 @@ def create_day_menu_item(path, kwargs):
                        on_exit=menu_edit_day_store,
                        kwargs=kwargs)
 
+def create_action_menu_item(path, kwargs):
+    menu.add_menu_item(path,
+                       on_enter=menu_action_start,
+                       on_process=menu_action,
+                       on_exit=None,
+                       kwargs=kwargs)
+
 # --------------------------------------------------------------------
 def create_menu():
     menu.add_menu_item(["musc"], on_process=menu_edit_time)
     menu.add_menu_item(["lght"], on_process=menu_edit_time)
     create_time_menu_item(["syst", "time"], kwargs={"target": "system", })
     create_day_menu_item(["syst", "day"], kwargs={"target": "system", })
+    create_action_menu_item(["syst", "updt"], kwargs={"target": "system",})
     # Alarm 1
     create_bool_menu_item(["alm1", "enbl"],
                           kwargs={"target": "alarm_1", "name": "enabled"})
@@ -680,13 +712,19 @@ def check_update():
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     wlan.connect(settings.CONFIG_SSID, settings.CONFIG_PASS)
+    counter = 5
+    while not wlan.isconnected() and counter > 0:
+        print("waiting on connection...")
+        time.sleep(1)
+        counter -= 1
+        
     new_version = None
     try:
         new_version = ugit.find_new_version()
         if not new_version:
             print("At latest version")
     except:
-        pass
+        print("Failed to get commit version")
     wlan.active(False)
     return new_version
 
@@ -711,16 +749,19 @@ def main():
     rtc_init()
     tim0.init(period=60000, mode=Timer.PERIODIC, callback=update_time)
     tim1.init(period=750, mode=Timer.PERIODIC, callback=blink_display)
-    update_time()
     if new_version is not None:
+        print("new version found")
         display_tm1637.show("UPDT")
-        neo.light(color=[64,0,0])
-        time.sleep(0.5)
-        neo.light(color=[0,64,0])
-        time.sleep(0.5)
-        neo.light(color=[0,0,64])
-        time.sleep(0.5)
-        
+        for i in range(1,5):
+            neo.light(color=[64,0,0], brightness=0.5)
+            time.sleep(0.25)
+            neo.light(color=[0,64,0], brightness=0.5)
+            time.sleep(0.25)
+            neo.light(color=[0,0,64], brightness=0.5)
+            time.sleep(0.25)
+    neo.off()
+    update_time()
+    
     time.sleep(3)
     app_context["state"] = AppState.CLOCK
     while True:

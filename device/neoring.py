@@ -18,9 +18,15 @@ class NeoRing:
         :param color: tuple (r, g, b)
         :param brightness: 0 .. 1.0
         """
-        r = int(float(color[0]) * float(brightness)/100.0)
-        g = int(float(color[1]) * float(brightness)/100.0)
-        b = int(float(color[2]) * float(brightness)/100.0)
+        #r = int(float(color[0]) * float(brightness)/100.0)
+        #g = int(float(color[1]) * float(brightness)/100.0)
+        #b = int(float(color[2]) * float(brightness)/100.0)
+        if brightness > 1.0:
+            brightness = 1.0
+            
+        r = int(float(color[0]) * float(brightness))
+        g = int(float(color[1]) * float(brightness))
+        b = int(float(color[2]) * float(brightness))
         for pixel in range(0, self._num_pixels):
             #display_tm1637.number(pixel)
             self._neo[pixel] = (r,g,b)   # set the first pixel to white
