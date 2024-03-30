@@ -702,4 +702,6 @@ def main():
         
         
 if __name__ == "__main__":
+    time.sleep(1)
+    print("start main application!")
     main()
