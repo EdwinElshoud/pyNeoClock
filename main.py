@@ -1,5 +1,9 @@
 from machine import SoftI2C, Pin
-
+import os
+import ugit
+import network
+import settings
+ 
 from neopixel import NeoPixel
 import time
 from machine import RTC
@@ -107,6 +111,19 @@ app_context = {
          },
         ]
     }
+def save_settings():
+    # Save the dictionary to a JSON file
+    with open('settings.json', 'w') as json_file:
+        json.dump(app_context["alarm"], json_file)
+
+def load_settings():
+    try:
+        # Load the dictionary from the JSON file
+        with open('settings.json') as json_file:
+            app_context["alarm"] = json.load(json_file)
+    except:
+        pass
+    
 
 # --------------------------------------------------------------------
 def menu_button_action(button, button_event):
@@ -127,6 +144,7 @@ def menu_button_action(button, button_event):
         print("In callback")
     elif res == MenuState.EXIT:
         print("exit menu")
+        save_settings()
         return AppState.CLOCK
     
     return AppState.MENU
@@ -658,11 +676,28 @@ def create_menu():
     create_value_menu_item(["alm2", "vol"],
                            kwargs={"target": "alarm_2", "name": "volume", "min_value": 0, "max_value": 7, })
     
+def check_update():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    wlan.connect(settings.CONFIG_SSID, settings.CONFIG_PASS)
+    new_version = None
+    try:
+        new_version = ugit.find_new_version()
+        if not new_version:
+            print("At latest version")
+    except:
+        pass
+    wlan.active(False)
+    return new_version
 
+    
 # --------------------------------------------------------------------
 # Main entry point
 # --------------------------------------------------------------------
 def main():
+    new_version = check_update()
+    load_settings()
+    
     button_list = [
         Button(PUSHBUTTON_LEFT_PIN, int(ButtonCode.LEFT), callback = button_action, internal_pulldown=True),
         Button(PUSHBUTTON_RIGHT_PIN, int(ButtonCode.RIGHT), callback = button_action, internal_pulldown=True),
@@ -677,6 +712,15 @@ def main():
     tim0.init(period=60000, mode=Timer.PERIODIC, callback=update_time)
     tim1.init(period=750, mode=Timer.PERIODIC, callback=blink_display)
     update_time()
+    if new_version is not None:
+        display_tm1637.show("UPDT")
+        neo.light(color=[64,0,0])
+        time.sleep(0.5)
+        neo.light(color=[0,64,0])
+        time.sleep(0.5)
+        neo.light(color=[0,0,64])
+        time.sleep(0.5)
+        
     time.sleep(3)
     app_context["state"] = AppState.CLOCK
     while True:
@@ -702,6 +746,6 @@ def main():
         
         
 if __name__ == "__main__":
-    time.sleep(1)
-    print("start main application!")
+    #time.sleep(1)
+    #print("start main application!")
     main()
