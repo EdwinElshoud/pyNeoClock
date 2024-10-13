@@ -686,28 +686,46 @@ def create_menu():
     create_bool_menu_item(["alm1", "enbl"],
                           kwargs={"target": "alarm_1", "name": "enabled"})
     create_time_menu_item(["alm1", "time"], kwargs={"target": "alarm_1", })
-    create_bool_menu_item(["alm1", "days", "mon"], kwargs={"target": "alarm_1", "name": "days:0"})
-    create_bool_menu_item(["alm1", "days", "tues"], kwargs={"target": "alarm_1", "name": "days:1"})
-    create_bool_menu_item(["alm1", "days", "wed"], kwargs={"target": "alarm_1", "name": "days:2"})
-    create_bool_menu_item(["alm1", "days", "thur"], kwargs={"target": "alarm_1", "name": "days:3"})
-    create_bool_menu_item(["alm1", "days", "fri"], kwargs={"target": "alarm_1", "name": "days:4"})
-    create_bool_menu_item(["alm1", "days", "sat"], kwargs={"target": "alarm_1", "name": "days:5"})
-    create_bool_menu_item(["alm1", "days", "sun"], kwargs={"target": "alarm_1", "name": "days:6"})
+    create_bool_menu_item(["alm1", "days", "mo"], kwargs={"target": "alarm_1", "name": "days:0"})
+    create_bool_menu_item(["alm1", "days", "tu"], kwargs={"target": "alarm_1", "name": "days:1"})
+    create_bool_menu_item(["alm1", "days", "we"], kwargs={"target": "alarm_1", "name": "days:2"})
+    create_bool_menu_item(["alm1", "days", "th"], kwargs={"target": "alarm_1", "name": "days:3"})
+    create_bool_menu_item(["alm1", "days", "fr"], kwargs={"target": "alarm_1", "name": "days:4"})
+    create_bool_menu_item(["alm1", "days", "sa"], kwargs={"target": "alarm_1", "name": "days:5"})
+    create_bool_menu_item(["alm1", "days", "su"], kwargs={"target": "alarm_1", "name": "days:6"})
     create_value_menu_item(["alm1", "dura"],
-                           kwargs={"target": "alarm_1", "name": "duration", "min_value": 0, "max_value": 59, })
+                           kwargs={"target": "alarm_1",
+                                   "name": "duration",
+                                   "min_value": 0,
+                                   "max_value": 59, })
     create_value_menu_item(["alm1", "vol"],
-                           kwargs={"target": "alarm_1", "name": "volume", "min_value": 0, "max_value": 7, })
+                           kwargs={"target": "alarm_1",
+                                   "name": "volume",
+                                   "min_value": 0,
+                                   "max_value": 7, })
     # Alarm 2
     create_time_menu_item(["alm2", "time"], kwargs={"target": "alarm_2", })
-    create_bool_menu_item(["alm2", "days", "mon"], kwargs={"target": "alarm_2", "name": "days:mon"})
-    create_bool_menu_item(["alm2", "days", "tues"], kwargs={"target": "alarm_2", "name": "days:tues"})
+    create_bool_menu_item(["alm2", "days", "mo"], kwargs={"target": "alarm_2", "name": "days:0"})
+    create_bool_menu_item(["alm2", "days", "tu"], kwargs={"target": "alarm_2", "name": "days:1"})
+    create_bool_menu_item(["alm2", "days", "we"], kwargs={"target": "alarm_2", "name": "days:2"})
+    create_bool_menu_item(["alm2", "days", "th"], kwargs={"target": "alarm_2", "name": "days:3"})
+    create_bool_menu_item(["alm2", "days", "fr"], kwargs={"target": "alarm_2", "name": "days:4"})
+    create_bool_menu_item(["alm2", "days", "sa"], kwargs={"target": "alarm_2", "name": "days:5"})
+    create_bool_menu_item(["alm2", "days", "su"], kwargs={"target": "alarm_2", "name": "days:6"})
     
     
     create_value_menu_item(["alm2", "dura"],
-                           kwargs={"target": "alarm_2", "name": "duration", "min_value": 0, "max_value": 59,})
+                           kwargs={"target": "alarm_2",
+                                   "name": "duration",
+                                   "min_value": 0,
+                                   "max_value": 59,})
     create_value_menu_item(["alm2", "vol"],
-                           kwargs={"target": "alarm_2", "name": "volume", "min_value": 0, "max_value": 7, })
-    
+                           kwargs={"target": "alarm_2",
+                                   "name": "volume",
+                                   "min_value": 0,
+                                   "max_value": 7, })
+
+
 def check_update():
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
