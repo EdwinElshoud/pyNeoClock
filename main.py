@@ -538,14 +538,15 @@ def menu_edit_value(target, name, min_value, max_value, button, event):
 def menu_edit_bool_start(target, name):
     alarm = None
     if target == "alarm_1":
-        alarm = 1
+        alarm = 0
     elif target == "alarm_2":
-        alarm = 2
+        alarm = 1
     else:
         return	# Error condition
     
     if "days" in name:
         day = int(name.split(":")[1])
+        print(f"alarm={alarm}, day={day}")
         app_context["edit_bool"]["state"] = app_context["alarm"][alarm]["days"][day]
     else:
         app_context["edit_bool"]["state"] = app_context["alarm"][alarm][name]
@@ -557,9 +558,9 @@ def menu_edit_bool_start(target, name):
 def menu_edit_bool_store(target, name):
     alarm = None
     if target == "alarm_1":
-        alarm = 1
+        alarm = 0
     elif target == "alarm_2":
-        alarm = 2
+        alarm = 1
     else:
         return	# Error condition
 
